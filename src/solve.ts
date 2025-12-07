@@ -24,6 +24,10 @@ export class NotFoundError extends Error {
  * Solve reCAPTCHA challenge in a page.
  * @param page a playwright Page.
  * @param options options.
+ * @param options.delay Delay between keystrokes when typing the answer (default: 64ms).
+ * @param options.wait Maximum time to wait for elements (default: 5000ms).
+ * @param options.retry Number of retry attempts if solving fails (default: 3).
+ * @param options.ffmpeg Path to ffmpeg executable (default: "ffmpeg").
  */
 export async function solve(
     page: Page,

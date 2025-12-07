@@ -57,6 +57,29 @@ async function main() {
 }
 ```
 
+### Headless Server / Ubuntu CLI
+
+If you're running on a headless server (Ubuntu CLI, Docker, etc.) without audio devices, use these browser arguments:
+
+```js
+import { chromium } from "playwright-core";
+import { solve, HEADLESS_ARGS } from "recaptcha-solver";
+
+const browser = await chromium.launch({
+    headless: true,
+    args: HEADLESS_ARGS  // Disables audio output requirements
+});
+const page = await browser.newPage();
+await page.goto("https://www.google.com/recaptcha/api2/demo");
+await solve(page);
+```
+
+The `HEADLESS_ARGS` include:
+- `--disable-audio-output` - Prevents "no audio device" errors
+- `--mute-audio` - Mutes all audio
+- `--no-sandbox` - Required for Docker/containerized environments
+- Other stability flags for headless operation
+
 ```sh
 ❯ node example/index.mjs
 solved!
@@ -88,3 +111,37 @@ solve reCAPTCHA: 4.072s
 [demo.mp4 (23s)](example/demo.mp4)
 
 https://user-images.githubusercontent.com/28478594/181560802-a6be4c0f-3258-4cd6-b605-3d9671b04a8f.mp4
+
+## Troubleshooting
+
+### "No audio device detected" error on Ubuntu/Linux servers
+
+This happens when running on headless servers without audio hardware. The browser tries to play audio but can't find an audio device.
+
+**Solution**: Use the `HEADLESS_ARGS` when launching the browser:
+
+```js
+import { HEADLESS_ARGS } from "recaptcha-solver";
+
+const browser = await chromium.launch({
+    headless: true,
+    args: HEADLESS_ARGS
+});
+```
+
+See [`example/headless.mjs`](example/headless.mjs) for a complete example.
+
+### ffmpeg not found
+
+Make sure `ffmpeg` is installed on your system:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install ffmpeg
+
+# macOS
+brew install ffmpeg
+
+# Windows (using Chocolatey)
+choco install ffmpeg
+```
