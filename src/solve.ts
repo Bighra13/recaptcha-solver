@@ -31,20 +31,69 @@ export class NotFoundError extends Error {
  */
 export async function solve(
     page: Page,
-    { delay = 64, wait = 5000, retry = 3, ffmpeg = "ffmpeg" } = {},
+    { delay = 64, wait = 5000, retry = 5, ffmpeg = "ffmpeg" } = {},
 ): Promise<boolean> {
+    let invisible = false;
+
+    // First, check if the main reCAPTCHA checkbox iframe exists
+    debug("Looking for reCAPTCHA checkbox iframe...");
     try {
-        await page.waitForSelector(BFRAME, { state: "attached" });
+        await page.waitForSelector(MAIN_FRAME, { state: "attached", timeout: wait });
     } catch {
         throw new Error("No reCAPTCHA detected");
     }
 
-    let invisible = false;
+    const iframe = await page.$(MAIN_FRAME);
+    if (iframe === null) {
+        throw new Error("Could not find reCAPTCHA iframe");
+    }
 
-    // bframe is the frame that contains the reCAPTCHA challenge.
-    const b_iframe = await page.$(BFRAME);
+    const box_page = await iframe.contentFrame();
+    if (box_page === null) {
+        throw new Error("Could not find reCAPTCHA iframe content");
+    }
+
+    // Check if it's invisible reCAPTCHA
+    invisible = (await box_page.$("div.rc-anchor-invisible")) ? true : false;
+    debug("invisible:", invisible);
+
+    // Check if already checked (solved)
+    const checkbox = await box_page.$(".recaptcha-checkbox");
+    const isChecked = checkbox
+        ? await checkbox.evaluate((el) => el.getAttribute("aria-checked") === "true")
+        : false;
+
+    if (isChecked) {
+        debug("reCAPTCHA already solved");
+        return false;
+    }
+
+    // For invisible reCAPTCHA, we can't click the checkbox
+    if (invisible === true) {
+        debug("Invisible reCAPTCHA detected, waiting for challenge...");
+    } else {
+        // Click the "I'm not a robot" checkbox
+        debug("Clicking reCAPTCHA checkbox...");
+        const anchor = await box_page.$("#recaptcha-anchor");
+        if (anchor === null) {
+            throw new Error("Could not find reCAPTCHA anchor");
+        }
+
+        await anchor.click();
+        debug("Checkbox clicked!");
+        
+        // Wait a bit longer for the challenge to appear (or for instant pass)
+        await page.waitForTimeout(2000);
+    }
+
+    // Now check if the challenge popup (bframe) appeared
+    debug("Checking for challenge popup...");
+    let b_iframe = await page.$(BFRAME);
+    
+    // If no challenge popup, the checkbox click was enough (instant pass)
     if (b_iframe === null) {
-        throw new Error("Could not find reCAPTCHA popup iframe");
+        debug("No challenge popup - instant pass!");
+        return false;
     }
 
     const bframe = await b_iframe.contentFrame();
@@ -55,34 +104,14 @@ export async function solve(
     const bframe_loaded = (await bframe.$(CHALLENGE)) ? true : false;
     debug("bframe loaded:", bframe_loaded);
 
-    // if bframe is not loaded, manually load it by clicking the button in main frame.
     if (bframe_loaded === false) {
-        await page.waitForSelector(MAIN_FRAME, { state: "attached" });
-
-        const iframe = await page.$(MAIN_FRAME);
-        if (iframe === null) {
-            throw new Error("Could not find reCAPTCHA iframe");
-        }
-
-        const box_page = await iframe.contentFrame();
-        if (box_page === null) {
-            throw new Error("Could not find reCAPTCHA iframe content");
-        }
-
-        invisible = (await box_page.$("div.rc-anchor-invisible")) ? true : false;
-        debug("invisible:", invisible);
-
-        // invisible reCAPTCHA does not has label on it.
-        if (invisible === true) {
+        debug("Challenge not loaded yet, waiting...");
+        try {
+            await bframe.waitForSelector(CHALLENGE, { timeout: wait });
+        } catch {
+            // Challenge didn't appear - might have passed instantly
+            debug("Challenge didn't appear - checking if passed...");
             return false;
-        } else {
-            const label = await box_page.$("#recaptcha-anchor-label");
-            if (label === null) {
-                throw new Error("Could not find reCAPTCHA label");
-            }
-
-            await label.click();
-            await bframe.waitForSelector(CHALLENGE);
         }
     }
 
@@ -110,6 +139,8 @@ export async function solve(
     await mutex.lock("init");
     let passed = false;
     let answer = Promise.resolve("");
+    
+    // Set up response listener BEFORE clicking audio button
     const listener = async (res: Response) => {
         if (res.headers()["content-type"] === "audio/mp3") {
             debug(`got audio from ${res.url()}`);
@@ -130,7 +161,11 @@ export async function solve(
         }
     };
     page.on("response", listener);
+    
+    // Wait a moment for listener to be ready
+    await page.waitForTimeout(500);
 
+    debug("Clicking audio button...");
     await audio_button.click();
 
     let tried = 0;
@@ -139,13 +174,25 @@ export async function solve(
             throw new Error("Could not solve reCAPTCHA");
         }
 
+        // Wait for audio source element to appear first
+        debug("Waiting for audio source element...");
+        try {
+            await bframe.waitForSelector("#audio-source", { state: "attached", timeout: wait * 2 });
+        } catch {
+            debug("Audio source not found, retrying...");
+            continue;
+        }
+        
+        debug("Audio source found, waiting for audio file...");
+        
+        // Now wait for the audio file to be intercepted
         await Promise.race([
             mutex.lock("ready"),
-            sleep(wait).then(() => {
+            sleep(wait * 2).then(() => {
                 throw new NotFoundError("No Audio Found");
             }),
         ]);
-        await bframe.waitForSelector("#audio-source", { state: "attached", timeout: wait });
+        
         await bframe.waitForSelector("#audio-response", { timeout: wait });
 
         debug("reconized:", await answer);

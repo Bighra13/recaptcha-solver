@@ -23,7 +23,7 @@ async function main() {
     try {
         console.log("\n1. Launching browser with HEADLESS_ARGS...");
         const browser = await chromium.launch({
-            headless: false,
+            headless: false,  // Must be true for Ubuntu servers!
             args: HEADLESS_ARGS,
         });
 

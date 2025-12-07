@@ -10,11 +10,13 @@ Requirements:
 
 Features:
 
-- Offline: A pretrained small model is included.
-- Fast: Solve each challenge in less than 3 seconds.
-- Accurate: Over 95% accuracy.
-- Auto-retry: If the challenge is not solved, it will retry it.
-- Supports reCAPTCHA v2 and v3 (invisible).
+- **Fully Automatic**: Automatically clicks the "I'm not a robot" checkbox and solves any challenge
+- **Offline**: A pretrained small model is included
+- **Fast**: Solve each challenge in less than 3 seconds
+- **Accurate**: Over 95% accuracy
+- **Auto-retry**: If the challenge is not solved, it will retry it
+- **Supports reCAPTCHA v2 and v3 (invisible)**
+- **Headless-friendly**: Works on Ubuntu CLI servers without audio devices
 
 ## Install
 
@@ -28,7 +30,7 @@ The model is from <https://alphacephei.com/vosk/models> (Apache 2.0).
 
 ## Example
 
-Checkout [`example/index.mjs`](example/index.mjs)!
+The `solve()` function is **fully automatic** - it clicks the checkbox AND solves any challenge:
 
 ```js
 import { chromium } from "playwright-core";
@@ -44,6 +46,10 @@ async function main() {
     await page.goto(EXAMPLE_PAGE);
 
     console.time("solve reCAPTCHA");
+    // This automatically:
+    // 1. Clicks "I'm not a robot" checkbox
+    // 2. Solves any audio challenge that appears
+    // 3. Retries if needed
     await solve(page);
     console.log("solved!");
     console.timeEnd("solve reCAPTCHA");
@@ -56,6 +62,8 @@ async function main() {
     });
 }
 ```
+
+See [`example/complete-automation.mjs`](example/complete-automation.mjs) for more examples!
 
 ### Headless Server / Ubuntu CLI
 
