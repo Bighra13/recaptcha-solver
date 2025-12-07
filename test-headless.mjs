@@ -1,4 +1,15 @@
 import { chromium } from "playwright-core";
+import { existsSync } from "fs";
+
+// Check if lib exists
+if (!existsSync("./lib/index.mjs")) {
+    console.error("❌ Error: lib/index.mjs not found!");
+    console.error("\nPlease build the project first:");
+    console.error("  npm install");
+    console.error("  npm run build");
+    process.exit(1);
+}
+
 import { solve, HEADLESS_ARGS } from "./lib/index.mjs";
 
 const EXAMPLE_PAGE = "https://www.google.com/recaptcha/api2/demo";
