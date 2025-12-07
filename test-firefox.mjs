@@ -12,7 +12,7 @@ async function main() {
     try {
         console.log("1️⃣  Launching Firefox in HEADLESS mode...");
         const browser = await firefox.launch({
-            headless: false,
+            headless: true,
             args: HEADLESS_ARGS,
         });
 
